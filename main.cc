@@ -16,7 +16,7 @@ std::function<void(const Request)> handler = [](const Request req) {
 int main() {
     // TcpServer tcp_server = TcpServer(8080);
     // Server &server = tcp_server;
-    UdpServer udp_server = UdpServer(8080, "224.1.1.1", {"127.0.0.1", "172.24.100.137"});
+    UdpServer udp_server = UdpServer(8080, "224.1.1.1", {"172.24.100.137", "127.0.0.1"});
     Server &server = udp_server;
     server.register_default_processor(handler);
     server.run();
