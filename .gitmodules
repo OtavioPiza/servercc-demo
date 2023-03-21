@@ -1,3 +1,3 @@
 [submodule "lib/servercc"]
 	path = lib/servercc
-	url = git@github.com:OtavioPiza/servercc.git
+	url = https://github.com/OtavioPiza/servercc.git
