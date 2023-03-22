@@ -13,10 +13,26 @@ std::function<void(const Request)> handler = [](const Request req) {
     std::cout << "Received request: " << req.data << std::endl;
 };
 
-int main() {
-    // TcpServer tcp_server = TcpServer(8080);
-    // Server &server = tcp_server;
-    UdpServer udp_server = UdpServer(8080, "224.1.1.1", {"172.24.100.137", "127.0.0.1"});
+
+
+int main(int argc, char *argv[]) {
+
+    // Verify there is at least three arguments.
+    if (argc < 4) {
+        std::cout << "Usage: " << argv[0] << " <port> <group> <interfaces>" << std::endl;
+        return 1;
+    }
+
+    // Extract the port, group and interfaces.
+    int port = atoi(argv[1]);
+    std::string group = argv[2];
+    std::vector<std::string> interfaces;
+    for (int i = 3; i < argc; i++) {
+        interfaces.push_back(argv[i]);
+    }
+
+    // Create a UDP server.
+    UdpServer udp_server(port, group, interfaces);
     Server &server = udp_server;
     server.register_default_processor(handler);
     server.run();
