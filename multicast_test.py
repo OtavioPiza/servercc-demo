@@ -21,5 +21,6 @@ if __name__ == '__main__':
     # Read input from stdin and send it to the multicast group
     message: str
     while message := sys.stdin.readline():
+        sys.stdout.write(message)
         sock.sendto(message.encode(), (group, port))
     
