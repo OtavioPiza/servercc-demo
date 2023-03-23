@@ -6,6 +6,7 @@
 
 using ostp::libcc::utils::Status;
 using ostp::servercc::client::Client;
+using ostp::servercc::client::TcpClient;
 using ostp::servercc::client::UdpClient;
 using ostp::servercc::server::Request;
 using ostp::servercc::server::Server;
@@ -84,8 +85,18 @@ int main(int argc, char *argv[]) {
     std::cout << "Client sending request to " << client.get_address() << ":" << client.get_port()
               << std::endl;
     client.open_socket();
-    client.send("Hello World!");
+    client.send_message("Hello World!");
     client.close_socket();
+
+    // Create tcp client.
+    TcpClient tcp_client("127.0.0.1", port);
+
+    std::cout << "Client sending request to " << tcp_client.get_address() << ":"
+              << tcp_client.get_port() << std::endl;
+    std::cout << tcp_client.open_socket().status_message << std::endl
+              << tcp_client.send_message("GET").status_message << std::endl
+              << "Received response: " << tcp_client.receive_message().result << std::endl;
+    tcp_client.close_socket();
 
     // Wait for the server to finish.
     server_thread.join();
