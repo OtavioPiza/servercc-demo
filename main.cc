@@ -5,9 +5,13 @@
 #include "servercc.h"
 
 using ostp::libcc::utils::Status;
-using ostp::severcc::server::Request;
-using ostp::severcc::server::ServerMode;
-using namespace ostp::severcc::server;
+using ostp::servercc::client::Client;
+using ostp::servercc::client::UdpClient;
+using ostp::servercc::server::Request;
+using ostp::servercc::server::Server;
+using ostp::servercc::server::ServerMode;
+using ostp::servercc::server::TcpServer;
+using ostp::servercc::server::UdpServer;
 
 std::function<void(const Request)> handler = [](const Request req) {
     std::cout << "Received request: " << req.data << std::endl;
@@ -69,6 +73,19 @@ int main(int argc, char *argv[]) {
         std::cout << "Server listening on port " << tcp_server_ref.get_port() << std::endl;
         tcp_server_ref.run();
     });
+
+    // Wait 1 second.
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    // Create udp client.
+    UdpClient udp_client("lo", "127.0.0.1", port, 2, group);
+    Client &client = udp_client;
+
+    std::cout << "Client sending request to " << client.get_address() << ":" << client.get_port()
+              << std::endl;
+    client.open_socket();
+    client.send("Hello World!");
+    client.close_socket();
 
     // Wait for the server to finish.
     server_thread.join();
