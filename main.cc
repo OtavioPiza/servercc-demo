@@ -9,7 +9,6 @@ using ostp::servercc::Request;
 using ostp::servercc::client::Client;
 using ostp::servercc::client::MulticastClient;
 using ostp::servercc::client::TcpClient;
-using ostp::servercc::client::UdpClient;
 using ostp::servercc::connector::Connector;
 using ostp::servercc::server::Server;
 using ostp::servercc::server::ServerMode;
@@ -22,7 +21,7 @@ using ostp::servercc::server::UdpServer;
 int main(int argc, char *argv[]) {
     /// Interface for multicast.
     const std::string interface = "ztyxaydhop";
-    std::string interface_ip = "172.24.100.137";
+    std::string interface_ip = argv[1];
 
     /// Group for multicast.
     const std::string group = "224.1.1.1";
@@ -38,7 +37,7 @@ int main(int argc, char *argv[]) {
         [](int i) { return; });
 
     /// Handler for a multicast request.
-    std::function<void(const Request)> multicast_request_handler = [](const Request request) {
+    std::function<void(const Request)> multicast_request_handler = [&](const Request request) {
         /// Find the ip address of the client that sent the request by looking
         /// after the first space in the request.
         int space_index = request.data.find(' ');
@@ -60,6 +59,7 @@ int main(int argc, char *argv[]) {
 
         /// Create a new connector for the client.
         int fd = conn.add_client(TcpClient(ip, std::stoi(port_string)));
+        conn.send_message(fd, "connect " + std::to_string(port));
     };
 
     /// Creates a Connector for the TCP server.
@@ -75,12 +75,29 @@ int main(int argc, char *argv[]) {
         std::cout << "Request: " << request.data << std::endl;
 
         /// Create a new connector for the client.
-        conn.add_client(TcpClient(request.client_fd.value()));
+        int fd = conn.add_client(TcpClient(request.fd, ip, port));
+        std::cout << "Creating new connector for client from TCP request." << '\n'
+                  << "fd: " << fd << std::endl;
+        conn.send_message(fd, "Hello from " + std::to_string(port));
+    };
+
+    /// Handler for a TCP request.
+    std::function<void(const Request)> echo_request_handler = [&](const Request request) {
+        /// Find the ip address of the client that sent the request by looking
+        /// after the first space in the request.
+        struct sockaddr_in *addr = reinterpret_cast<struct sockaddr_in *>(request.addr.get());
+        char ip[INET_ADDRSTRLEN];
+
+        std::cout << "TCP request from '" << ip << "'" << std::endl;
+        std::cout << "Request: " << request.data << std::endl;
+
+        close(request.fd);
     };
 
     /// Create a UDP server for multicast.
     UdpServer m_server(port, group, {interface_ip});
-    m_server.set_default_processor(multicast_request_handler);
+    m_server.set_default_processor(echo_request_handler);
+    m_server.set_processor("connect", multicast_request_handler);
 
     /// Create a TCP server.
     TcpServer t_server(port);
@@ -95,22 +112,9 @@ int main(int argc, char *argv[]) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     /// Create a UDP client for multicast.
-    UdpClient m_client(interface, "127.0.0.1", port, 3, group);
+    MulticastClient m_client(interface, group, port);
     m_client.open_socket();
-    m_client.send_message("Hello " + interface_ip);
-
-    /// Read from stdin and broadcast the message.
-    // std::string message;
-    // while (std::getline(std::cin, message)) {
-    //     m_client.send_message(message);
-    // }
-
-    TcpClient t_client("localhost", port);
-    t_client.open_socket();
-    int cfd = conn.add_client(t_client);
-    std::cout << "Added client with fd cfd: " << cfd << std::endl;
-    conn.send_message(cfd, "connect " + std::to_string(port));
-    conn.send_message(cfd, "Hello world!");
+    m_client.send_message("connect " + std::to_string(port));
 
     /// Wait for the servers to finish.
     m_thread.join();
