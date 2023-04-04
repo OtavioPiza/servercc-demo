@@ -1,7 +1,7 @@
+#include <arpa/inet.h>
 #include <bits/stdc++.h>
 
 #include <functional>
-#include <arpa/inet.h>
 
 #include "servercc.h"
 
@@ -13,7 +13,11 @@ using ostp::servercc::distributed::DistributedServer;
 int main(int argc, char *argv[]) {
     /// Interface for multicast.
     const std::string interface = "ztyxaydhop";
-    std::string interface_ip = argv[1];
+    std::string interface_ip;
+    if (argc != 1) {
+        interface_ip = argv[1];
+    }
+    interface_ip = "172.24.100.137";
 
     /// Group for multicast.
     const std::string group = "224.1.1.1";
