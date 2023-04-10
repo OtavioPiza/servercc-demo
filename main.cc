@@ -30,6 +30,25 @@ int main(int argc, char *argv[]) {
     DistributedServer server(interface, interface_ip, group, port, [](const Request request) {
         std::cout << "Received request: " << request.data << std::endl;
     });
+
+    server.add_handler("get", [&](const Request request) {
+        server.log(Status::OK, "Received get request: " + request.data);
+
+        /// Send the response.
+        string response = "Hello from server!";
+        string http_response =
+            "HTTP/1.1 200 OK\r"
+            "Content-Type: text/plain\r"
+            "Content-Length: " +
+            std::to_string(response.size()) +
+            "\r"
+            "\r" +
+            response;
+
+        send(request.fd, http_response.c_str(), http_response.size(), 0);
+        close(request.fd);
+    });
+
     server.run();
 
     /// Sleep forever.
