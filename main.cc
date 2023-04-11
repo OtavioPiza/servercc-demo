@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     if (argc != 1) {
         interface_ip = argv[1];
     } else {
-        interface_ip = "172.24.202.75";
+        interface_ip = "172.24.0.1";
     }
 
     /// Group for multicast.
@@ -110,6 +110,9 @@ int main(int argc, char *argv[]) {
                 auto id = server.send_message(peer, "echo " + message);
                 if (id.ok()) {
                     auto msg = server.receive_message(id.result);
+                    server.log(Status::OK, "Received echo response: " + msg.result);
+                } else {
+                    server.log(Status::ERROR, "Failed to send echo request.");
                 }
             }
         } else if (line.starts_with("mcast ")) {
