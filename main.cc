@@ -27,9 +27,12 @@ int main(int argc, char *argv[]) {
     const int port = 8000;
 
     /// Create the distributed server.
-    DistributedServer server(interface, interface_ip, group, port, [](const Request request) {
-        std::cout << "Received request: " << request.data << std::endl;
-    });
+    DistributedServer server(
+        interface, interface_ip, group, port,
+        [](const Request request) {
+            std::cout << "Received request: " << request.data << std::endl;
+        },
+        [](const std::string ip) { std::cout << "Peer disconnected: " << ip << std::endl; });
 
     server.add_handler("get", [&](const Request request) {
         server.log(Status::OK, "Received get request: " + request.data);
