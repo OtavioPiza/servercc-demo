@@ -8,63 +8,69 @@
 using ostp::servercc::distributed::DistributedServer;
 using namespace std;
 
-/// Echoes the tcp request.
+/// The letterhead for the shell.
+const string letterhead = R"(
+░██████╗███████╗██████╗░██╗░░░██╗███████╗██████╗░░█████╗░░█████╗░
+██╔════╝██╔════╝██╔══██╗██║░░░██║██╔════╝██╔══██╗██╔══██╗██╔══██╗
+╚█████╗░█████╗░░██████╔╝╚██╗░██╔╝█████╗░░██████╔╝██║░░╚═╝██║░░╚═╝
+░╚═══██╗██╔══╝░░██╔══██╗░╚████╔╝░██╔══╝░░██╔══██╗██║░░██╗██║░░██╗
+██████╔╝███████╗██║░░██║░░╚██╔╝░░███████╗██║░░██║╚█████╔╝╚█████╔╝
+╚═════╝░╚══════╝╚═╝░░╚═╝░░░╚═╝░░░╚══════╝╚═╝░░╚═╝░╚════╝░░╚════╝░
+)";
+
+/// The shell prompt.
+const string prompt = "servercc> ";
+
+/// An HTTP 200 OK response.
+const string http_ok = "HTTP/1.1 200 OK\r\n\r\n";
 
 /// The main function.
 int main(int argc, char *argv[]) {
-    /// Interface for multicast.
-    const std::string interface = "ztyxaydhop";
-    std::string interface_ip;
-    if (argc != 1) {
-        interface_ip = argv[1];
-    } else {
-        interface_ip = "172.24.0.1";
+    // Get the interface name, ip, group, and port from the command line.
+    if (argc < 4) {
+        cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port>" << endl;
+        return 0;
     }
 
-    /// Group for multicast.
-    const std::string group = "224.1.1.1";
+    /// The interface name.
+    const string interface = argv[1];
 
-    /// Port for multicast server UDP and for the TCP server.
-    const int port = 8000;
+    /// The ip address of the interface.
+    const string interface_ip = argv[2];
 
+    /// The multicast group.
+    const string group = argv[3];
+
+    /// The port to listen on.
+    const int port = stoi(argv[4]);
+
+    // Setup the callback functions.
+
+    /// Set of peers currently connected.
     set<string> peers;
 
-    /// Create the distributed server.
-    DistributedServer server(
-        interface, interface_ip, group, port,
-        [](const Request request) {
-            std::cout << "Received request: " << request.data << std::endl;
-        },
-        [&](const std::string ip) { peers.insert(ip); },
-        [&](const std::string ip) { peers.erase(ip); });
+    /// Callback function for when a peer connects.
+    function<void(const string)> on_peer_connect = [&](const string ip) { peers.insert(ip); };
 
-    server.add_handler("get", [&](const Request request) {
-        server.log(Status::OK, "Received get request: " + request.data);
+    /// Callback function for when a peer disconnects.
+    function<void(const string)> on_peer_disconnect = [&](const string ip) { peers.erase(ip); };
 
-        /// Send the response.
-        string response = "Hello from server!";
-        string http_response =
-            "HTTP/1.1 200 OK\r"
-            "Content-Type: text/plain\r"
-            "Content-Length: " +
-            std::to_string(response.size()) +
-            "\r"
-            "\r" +
-            response;
+    // Setup default handlers.
 
-        // Write response to request.fd.
-        write(request.fd, http_response.c_str(), http_response.size());
-
-        // For every peer, send a message with an echo request.
-        for (const auto &peer : peers) {
-            server.log(Status::OK, "Sending echo request to peer: " + peer);
-            server.send_message(peer, "echo hi");
-        }
-
-        // Close the connection.
+    /// Default request handler.
+    function<void(const Request)> default_request_handler = [](const Request request) {
+        // Send HTTP OK response.
+        write(request.fd, http_ok.c_str(), http_ok.size());
         close(request.fd);
-    });
+    };
 
+    /// Create the distributed server.
+    DistributedServer server(interface, interface_ip, group, port, default_request_handler,
+                             on_peer_connect, on_peer_disconnect);
+
+    // Add custom handlers.
+
+    /// Handler for the echo request.
     server.add_handler("echo", [&](const Request request) {
         server.log(Status::OK, "Received echo request: " + request.data);
         write(request.fd, request.data.c_str(), request.data.size());
@@ -75,19 +81,13 @@ int main(int argc, char *argv[]) {
 
     sleep(2);
 
-    /// Start the shell.
-    cout << "\n\n"
-            "░██████╗███████╗██████╗░██╗░░░██╗███████╗██████╗░░█████╗░░█████╗░\n"
-            "██╔════╝██╔════╝██╔══██╗██║░░░██║██╔════╝██╔══██╗██╔══██╗██╔══██╗\n"
-            "╚█████╗░█████╗░░██████╔╝╚██╗░██╔╝█████╗░░██████╔╝██║░░╚═╝██║░░╚═╝\n"
-            "░╚═══██╗██╔══╝░░██╔══██╗░╚████╔╝░██╔══╝░░██╔══██╗██║░░██╗██║░░██╗\n"
-            "██████╔╝███████╗██║░░██║░░╚██╔╝░░███████╗██║░░██║╚█████╔╝╚█████╔╝\n"
-            "╚═════╝░╚══════╝╚═╝░░╚═╝░░░╚═╝░░░╚══════╝╚═╝░░╚═╝░╚════╝░░╚════╝░\n"
-            "\n\n";
+    // Start the shell.
+    cout << letterhead << endl;
 
     /// Sleep forever.
     string line = "";
     do {
+        // Process the input.
         if (line == "peers") {
             cout << "== Peers Currently Connected ==" << endl;
 
@@ -103,16 +103,26 @@ int main(int argc, char *argv[]) {
             break;
         } else if (line == "clear") {
             system("clear");
-        } else if (line.starts_with("echo ")) {
+
+        }
+        // Handle echo command.
+        else if (line.starts_with("echo ")) {
+            // Get the message.
             string message = line.substr(5);
+
+            // Send the echo request to all peers.
             for (const auto &peer : peers) {
-                server.log(Status::OK, "Sending echo request to peer: " + peer);
                 auto id = server.send_message(peer, "echo " + message);
-                if (id.ok()) {
-                    auto msg = server.receive_message(id.result);
-                    server.log(Status::OK, "Received echo response: " + msg.result);
-                } else {
-                    server.log(Status::ERROR, "Failed to send echo request.");
+                while (id.ok()) {
+                    StatusOr<string> response = server.receive_message(id.result);
+
+                    // If we get a response, print it.
+                    if (response.ok()) {
+                        server.log(Status::OK, "Received echo response: " + response.result);
+
+                    } else {
+                        break;
+                    }
                 }
             }
         } else if (line.starts_with("mcast ")) {
@@ -121,6 +131,7 @@ int main(int argc, char *argv[]) {
             server.multicast_message(message);
         }
 
+        // Print the prompt.
         cout << "sever-demo-shell: ";
     } while (getline(cin, line));
 }
