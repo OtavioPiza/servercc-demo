@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     if (argc != 1) {
         interface_ip = argv[1];
     } else {
-        interface_ip = "172.24.100.137";
+        interface_ip = "172.24.202.75";
     }
 
     /// Group for multicast.
@@ -44,9 +44,6 @@ int main(int argc, char *argv[]) {
             "\r"
             "\r" +
             response;
-
-        send(request.fd, http_response.c_str(), http_response.size(), 0);
-        close(request.fd);
     });
 
     server.run();
