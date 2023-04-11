@@ -32,6 +32,7 @@ int main(int argc, char *argv[]) {
         [](const Request request) {
             std::cout << "Received request: " << request.data << std::endl;
         },
+        [](const std::string ip) { std::cout << "Peer connected: " << ip << std::endl; },
         [](const std::string ip) { std::cout << "Peer disconnected: " << ip << std::endl; });
 
     server.add_handler("get", [&](const Request request) {
@@ -47,6 +48,12 @@ int main(int argc, char *argv[]) {
             "\r"
             "\r" +
             response;
+
+        // Write response to request.fd.
+        write(request.fd, http_response.c_str(), http_response.size());
+
+        // Close the connection.
+        close(request.fd);
     });
 
     server.run();
