@@ -67,6 +67,7 @@ int main(int argc, char *argv[]) {
 
     server.add_handler("echo", [&](const Request request) {
         server.log(Status::OK, "Received echo request: " + request.data);
+        write(request.fd, request.data.c_str(), request.data.size());
         close(request.fd);
     });
 
@@ -106,7 +107,10 @@ int main(int argc, char *argv[]) {
             string message = line.substr(5);
             for (const auto &peer : peers) {
                 server.log(Status::OK, "Sending echo request to peer: " + peer);
-                server.send_message(peer, "echo " + message);
+                auto id = server.send_message(peer, "echo " + message);
+                if (id.ok()) {
+                    auto msg = server.receive_message(id.result);
+                }
             }
         } else if (line.starts_with("mcast ")) {
             string message = line.substr(6);
