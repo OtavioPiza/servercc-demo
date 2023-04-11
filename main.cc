@@ -67,9 +67,7 @@ int main(int argc, char *argv[]) {
 
     server.add_handler("echo", [&](const Request request) {
         server.log(Status::OK, "Received echo request: " + request.data);
-
-        // Return without closing the connection since the connection will be
-        // reused.
+        close(request.fd);
     });
 
     server.run();
