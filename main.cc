@@ -32,6 +32,9 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    // Abilities of the server.
+    const set<string> abilities = {"echo", "announce_services", "report_temp"};
+
     /// The interface name.
     const string interface = argv[1];
 
@@ -47,10 +50,12 @@ int main(int argc, char *argv[]) {
     // Setup the callback functions.
 
     /// Set of peers currently connected.
-    set<string> peers;
+    unordered_map<string, vector<string>> peers;
 
     /// Callback function for when a peer connects.
-    function<void(const string)> on_peer_connect = [&](const string ip) { peers.insert(ip); };
+    function<void(const string)> on_peer_connect = [&](const string ip) {
+        peers.insert({ip, vector<string>()});
+    };
 
     /// Callback function for when a peer disconnects.
     function<void(const string)> on_peer_disconnect = [&](const string ip) { peers.erase(ip); };
@@ -72,17 +77,39 @@ int main(int argc, char *argv[]) {
 
     /// Handler for the echo request.
     server.add_handler("echo", [&](const Request request) {
-        server.log(Status::OK, "Received echo request: '" + request.data + "'");
-        write(request.fd, request.data.c_str(), request.data.size());
-
         // Get the ip address of the peer from request.addr.
         shared_ptr<struct sockaddr_in> addr =
             std::reinterpret_pointer_cast<struct sockaddr_in>(request.addr);
         char ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &addr->sin_addr, ip, INET_ADDRSTRLEN);
 
+        // Log the request.
+        server.log(Status::OK, "Received echo request: '" + request.data + "'");
+        write(request.fd, request.data.c_str(), request.data.size());
+
         // Log the response.
-        server.log(Status::OK, "Sent echo response to: '" + ip + "'");
+        server.log(Status::OK, "Sent echo response to: '" + string(ip, INET_ADDRSTRLEN) + "'");
+
+        // Close the connection.
+        close(request.fd);
+    });
+
+    /// Handler for the announce_services request.
+    server.add_handler("announce_services", [&](const Request request) {
+        // Get the ip address of the peer from request.addr.
+        shared_ptr<struct sockaddr_in> addr =
+            std::reinterpret_pointer_cast<struct sockaddr_in>(request.addr);
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr->sin_addr, ip, INET_ADDRSTRLEN);
+
+        // Log the request.
+        server.log(Status::OK, "Received announce_services request: '" + request.data + "'");
+
+        // Go through each service and send a response separated by a space.
+        for (const auto &service : abilities) {
+            write(request.fd, service.c_str(), service.size());
+            write(request.fd, " ", 1);
+        }
 
         // Close the connection.
         close(request.fd);
@@ -90,32 +117,28 @@ int main(int argc, char *argv[]) {
 
     server.run();
 
-    sleep(2);
+    sleep(1);
 
     // Start the shell.
     cout << letterhead << endl;
 
     /// Sleep forever.
     string line = "";
-    do {
+    while (cout << "sever-demo-shell: " && getline(cin, line)) {
         // Process the input.
         if (line == "peers") {
             cout << "== Peers Currently Connected ==" << endl;
-
             for (const auto &peer : peers) {
-                cout << "- \t" << peer << endl;
+                cout << "- \t" << peer.first << endl;
             }
-            if (peers.empty()) {
-                cout << "No peers connected." << endl;
-            }
-
             cout << "================================" << endl;
-        } else if (line == "exit") {
-            break;
-        } else if (line == "clear") {
-            system("clear");
-
         }
+
+        // Handle the clear command.
+        else if (line == "clear") {
+            system("clear");
+        }
+
         // Handle echo command.
         else if (line.starts_with("echo ")) {
             // Get the message.
@@ -123,35 +146,21 @@ int main(int argc, char *argv[]) {
 
             // Send the echo request to all peers.
             for (const auto &peer : peers) {
-                auto id = server.send_message(peer, "echo " + message);
-                while (id.ok()) {
+                auto id = server.send_message(peer.first, "echo " + message);
+
+                // If we could not send the message, continue.
+                if (!id.ok()) {
+                    server.log(id.status, std::move(id.status_message));
+                    continue;
+                }
+
+                // Read all available responses.
+                while (true) {
                     StatusOr<string> response = server.receive_message(id.result);
 
                     // If we get a response, print it.
                     if (response.ok()) {
                         server.log(Status::OK, "Received echo response: " + response.result);
-
-                    } else {
-                        break;
-                    }
-                }
-            }
-        } else if (line.starts_with("mcast ")) {
-            string message = line.substr(6);
-            server.log(Status::OK, "Sending multicast request: " + message);
-            server.multicast_message(message);
-
-        } else if (line.starts_with("cpu")) {
-            // Send the cpu usage request to all peers.
-            for (const auto &peer : peers) {
-                auto id = server.send_message(peer, "cpu_usage");
-                while (id.ok()) {
-                    StatusOr<string> response = server.receive_message(id.result);
-
-                    // If we get a response, print it.
-                    if (response.ok()) {
-                        server.log(Status::OK, "Received cpu_usage response: " + response.result);
-
                     } else {
                         break;
                     }
@@ -159,7 +168,32 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Print the prompt.
-        cout << "sever-demo-shell: ";
-    } while (getline(cin, line));
+        // Handle the announce_services command.
+        else if (line == "announce_services") {
+            cout << "== Services Announced by Peers ==" << endl;
+            for (const auto &peer : peers) {
+                auto id = server.send_message(peer.first, "announce_services");
+
+                // If we could not send the message, continue.
+                if (!id.ok()) {
+                    server.log(id.status, std::move(id.status_message));
+                    continue;
+                }
+
+                // Read from response.
+                string services = "";
+                while (true) {
+                    StatusOr<string> response = server.receive_message(id.result);
+                    if (!response.ok()) {
+                        break;
+                    }
+                    services += response.result;
+                }
+                
+                // Print the services from the peer.
+                cout << peer.first << ": " << services << endl;
+            }
+            cout << "=================================" << endl;
+        }
+    }
 }
