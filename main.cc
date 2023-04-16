@@ -72,28 +72,19 @@ int main(int argc, char *argv[]) {
 
     /// Handler for the echo request.
     server.add_handler("echo", [&](const Request request) {
-        server.log(Status::OK, "Received echo request: " + request.data);
+        server.log(Status::OK, "Received echo request: '" + request.data + "'");
         write(request.fd, request.data.c_str(), request.data.size());
-        write(request.fd, "\n", 1);
-        write(request.fd, "more stuff\n", 11);
-        close(request.fd);
-    });
 
-    server.add_handler("cpu_usage", [&](const Request request) {
-        server.log(Status::OK, "Received cpu_usage request: " + request.data);
-        // Get the cpu usage from /proc/stat.
-        ifstream stat("/proc/stat");
-        string line;
-        getline(stat, line);
-        stat.close();
+        // Get the ip address of the peer from request.addr.
+        shared_ptr<struct sockaddr_in> addr =
+            std::reinterpret_pointer_cast<struct sockaddr_in>(request.addr);
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr->sin_addr, ip, INET_ADDRSTRLEN);
 
-        // Parse the cpu usage.
-        stringstream ss(line);
-        string cpu;
-        ss >> cpu;
+        // Log the response.
+        server.log(Status::OK, "Sent echo response to: '" + ip + "'");
 
-        // Send the cpu usage.
-        write(request.fd, cpu.c_str(), cpu.size());
+        // Close the connection.
         close(request.fd);
     });
 
