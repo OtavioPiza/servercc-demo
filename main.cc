@@ -74,6 +74,26 @@ int main(int argc, char *argv[]) {
     server.add_handler("echo", [&](const Request request) {
         server.log(Status::OK, "Received echo request: " + request.data);
         write(request.fd, request.data.c_str(), request.data.size());
+        write(request.fd, "\n", 1);
+        write(request.fd, "more stuff\n", 11);
+        close(request.fd);
+    });
+
+    server.add_handler("cpu_usage", [&](const Request request) {
+        server.log(Status::OK, "Received cpu_usage request: " + request.data);
+        // Get the cpu usage from /proc/stat.
+        ifstream stat("/proc/stat");
+        string line;
+        getline(stat, line);
+        stat.close();
+
+        // Parse the cpu usage.
+        stringstream ss(line);
+        string cpu;
+        ss >> cpu;
+
+        // Send the cpu usage.
+        write(request.fd, cpu.c_str(), cpu.size());
         close(request.fd);
     });
 
@@ -129,6 +149,23 @@ int main(int argc, char *argv[]) {
             string message = line.substr(6);
             server.log(Status::OK, "Sending multicast request: " + message);
             server.multicast_message(message);
+
+        } else if (line.starts_with("cpu")) {
+            // Send the cpu usage request to all peers.
+            for (const auto &peer : peers) {
+                auto id = server.send_message(peer, "cpu_usage");
+                while (id.ok()) {
+                    StatusOr<string> response = server.receive_message(id.result);
+
+                    // If we get a response, print it.
+                    if (response.ok()) {
+                        server.log(Status::OK, "Received cpu_usage response: " + response.result);
+
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
 
         // Print the prompt.
