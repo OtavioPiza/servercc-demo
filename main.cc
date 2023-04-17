@@ -49,8 +49,11 @@ int main(int argc, char *argv[]) {
 
     // Setup the callback functions.
 
-    /// Set of peers currently connected.
-    unordered_map<string, vector<string>> peers;
+    /// A map of peers to the services they provide.
+    unordered_map<string, set<string>> peers;
+
+    /// A map of services to the peers that provide them.
+    unordered_map<string, set<string>> services;
 
     /// Callback function for when a peer connects.
     function<void(const string)> on_peer_connect = [&](const string ip) {
@@ -58,7 +61,12 @@ int main(int argc, char *argv[]) {
     };
 
     /// Callback function for when a peer disconnects.
-    function<void(const string)> on_peer_disconnect = [&](const string ip) { peers.erase(ip); };
+    function<void(const string)> on_peer_disconnect = [&](const string ip) {
+        for (const auto &service : peers[ip]) {
+            services[service].erase(ip);
+        }
+        peers.erase(ip);
+    };
 
     // Setup default handlers.
 
@@ -140,7 +148,7 @@ int main(int argc, char *argv[]) {
 
         // Send the temperature.
         write(request.fd, temp.c_str(), temp.size());
-        
+
         // Close the connection.
         close(request.fd);
     });
@@ -218,6 +226,15 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                     services += response.result;
+                }
+
+                // Split the services by space and add to the services map.
+                int i = 0, j = 0;
+                for (; j < services.size(); j++) {
+                    if (services[j] == ' ') {
+                        services_map[peer.first].insert(services.substr(i, j - i));
+                        i = j + 1;
+                    }
                 }
 
                 // Print the services from the peer.
