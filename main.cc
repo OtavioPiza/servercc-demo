@@ -21,19 +21,26 @@ const string letterhead = R"(
 /// The shell prompt.
 const string prompt = "servercc> ";
 
-/// An HTTP 200 OK response.
-const string http_ok = "HTTP/1.1 200 OK\r\n\r\n";
-
 /// The main function.
 int main(int argc, char *argv[]) {
     // Get the interface name, ip, group, and port from the command line.
     if (argc < 4) {
-        cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port>" << endl;
+        cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> <abilities> ..." << endl;
         return 0;
     }
 
-    // Abilities of the server.
-    const set<string> abilities = {"echo", "announce_services", "report_temp"};
+    /// The abilities of the server.
+    set<string> abilities = {"announce_services"};
+    for (int i = 5; i < argc; i++) {
+        // Check if the ability is valid.
+        if (string(argv[i]) != "echo" && string(argv[i]) != "report_temp") {
+            cout << "Invalid ability: " << argv[i] << endl;
+            continue;
+        }
+
+        // Add the ability.
+        abilities.insert(argv[i]);
+    }
 
     /// The interface name.
     const string interface = argv[1];
@@ -50,14 +57,14 @@ int main(int argc, char *argv[]) {
     // Setup the callback functions.
 
     /// A map of peers to the services they provide.
-    unordered_map<string, set<string>> peers;
+    map<string, set<string>> peers;
 
     /// A map of services to the peers that provide them.
-    unordered_map<string, set<string>> services;
+    map<string, set<string>> services;
 
     /// Callback function for when a peer connects.
     function<void(const string)> on_peer_connect = [&](const string ip) {
-        peers.insert({ip, vector<string>()});
+        peers.insert({ip, set<string>()});
     };
 
     /// Callback function for when a peer disconnects.
@@ -73,6 +80,7 @@ int main(int argc, char *argv[]) {
     /// Default request handler.
     function<void(const Request)> default_request_handler = [](const Request request) {
         // Send HTTP OK response.
+        const string http_ok = "HTTP/1.1 200 OK\r\n\r\n";
         write(request.fd, http_ok.c_str(), http_ok.size());
         close(request.fd);
     };
@@ -110,10 +118,11 @@ int main(int argc, char *argv[]) {
         server.log(Status::OK, "Received announce_services request: '" + request.data + "'");
 
         // Go through each service and send a response separated by a space.
-        for (const auto &service : abilities) {
-            write(request.fd, service.c_str(), service.size());
-            write(request.fd, " ", 1);
+        string response = "";
+        for (const auto &service : peers[ip]) {
+            response += service + " ";
         }
+        write(request.fd, response.c_str(), response.size() - 1);
 
         // Close the connection.
         close(request.fd);
@@ -153,14 +162,13 @@ int main(int argc, char *argv[]) {
         close(request.fd);
     });
 
+    // Start the server.
     server.run();
 
     sleep(1);
 
     // Start the shell.
     cout << letterhead << endl;
-
-    /// Sleep forever.
     string line = "";
     while (cout << "sever-demo-shell: " && getline(cin, line)) {
         // Process the input.
@@ -175,6 +183,7 @@ int main(int argc, char *argv[]) {
         // Handle the clear command.
         else if (line == "clear") {
             system("clear");
+            cout << letterhead << endl;
         }
 
         // Handle echo command.
@@ -182,9 +191,15 @@ int main(int argc, char *argv[]) {
             // Get the message.
             string message = line.substr(5);
 
-            // Send the echo request to all peers.
-            for (const auto &peer : peers) {
-                auto id = server.send_message(peer.first, "echo " + message);
+            // Send the echo request to peers who support the service.
+            auto peers_it = services.find("echo");
+            if (peers_it == services.end()) {
+                server.log(Status::ERROR, "No peers support the echo service");
+                continue;
+            }
+
+            for (const auto &peer : peers_it->second) {
+                auto id = server.send_message(peer, "echo " + message);
 
                 // If we could not send the message, continue.
                 if (!id.ok()) {
@@ -232,7 +247,20 @@ int main(int argc, char *argv[]) {
                 int i = 0, j = 0;
                 for (; j < services.size(); j++) {
                     if (services[j] == ' ') {
-                        services_map[peer.first].insert(services.substr(i, j - i));
+                        string service = services.substr(i, j - i);
+                        cout << "service: " << service << endl;
+
+                        // Add the service to the peer.
+                        // peer.second.insert(service);
+
+                        // Add the peer to the service.
+                        // auto map_it = services.find(service);
+                        // if (map_it == services.end()) {
+                        //     services[service] = {peer.first};
+                        // } else {
+                        //     map_it->second.insert(peer.first);
+                        // }
+
                         i = j + 1;
                     }
                 }
