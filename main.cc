@@ -302,5 +302,20 @@ int main(int argc, char *argv[]) {
             }
             cout << "==================================" << endl;
         }
+
+        // Print supported commands.
+        else if (line == "help" || line == "h") {
+            cout << "== Supported Commands ==" << endl
+                 << "peers\t - List peers currently connected" << endl
+                 << "services\t - List services currently available" << endl
+                 << "echo <message>\t - Send a message to peers who support the echo service"
+                 << endl
+                 << "report_temp\t - Report the temperature of peers who support the report_temp "
+                    "service"
+                 << endl
+                 << "clear\t - Clear the screen" << endl
+                 << "help\t - Print this message" << endl
+                 << "========================" << endl;
+        }
     }
 }
