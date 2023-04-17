@@ -205,7 +205,7 @@ int main(int argc, char *argv[]) {
     string line = "";
     while (cout << "sever-demo-shell: " && getline(cin, line)) {
         // Process the input.
-        if (line == "peers" || line == "p" || line == "ls") {
+        if (line == "peers" || line == "p") {
             cout << "== Peers Currently Connected ==" << endl;
             for (const auto &peer : peers_to_services) {
                 cout << "- \t" << peer.first << endl;
