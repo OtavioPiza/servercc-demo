@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     }
 
     /// The abilities of the server.
-    set<string> abilities = {"announce_services"};
+    set<string> abilities;
     for (int i = 5; i < argc; i++) {
         // Check if the ability is valid.
         if (string(argv[i]) != "echo" && string(argv[i]) != "report_temp") {
@@ -64,12 +64,50 @@ int main(int argc, char *argv[]) {
     map<string, set<string>> services;
 
     /// Callback function for when a peer connects.
-    function<void(const string)> on_peer_connect = [&](const string ip) {
-        peers.insert({ip, set<string>()});
+    function on_peer_connect = [&](const string peer, DistributedServer &server) {
+        peers.insert({peer, set<string>()});
+        auto id = server.send_message(peer, "announce_services");
+
+        // If we could not send the message, continue.
+        if (!id.ok()) {
+            server.log(id.status, std::move(id.status_message));
+            return;
+        }
+
+        // Read from response.
+        string services_string = "";
+        while (true) {
+            StatusOr<string> response = server.receive_message(id.result);
+            if (!response.ok()) {
+                break;
+            }
+            services_string += response.result;
+        }
+
+        // Split the services by space and add to the services map.
+        int i = 0, j = 0;
+        for (; j < services_string.size(); j++) {
+            if (services_string[j] == ' ') {
+                // Extract the service.
+                string service = services_string.substr(i, j - i);
+                i = j + 1;
+
+                // Add the peer to the service.
+                peers[peer].insert(service);
+
+                // Create the service if it does not exist.
+                if (services.find(service) == services.end()) {
+                    services[service] = set<string>();
+                }
+
+                // Add the peer to the service.
+                services[service].insert(peer);
+            }
+        }
     };
 
     /// Callback function for when a peer disconnects.
-    function<void(const string)> on_peer_disconnect = [&](const string ip) {
+    function on_peer_disconnect = [&](const string ip, DistributedServer &server) {
         for (const auto &service : peers[ip]) {
             services[service].erase(ip);
         }
@@ -189,54 +227,6 @@ int main(int argc, char *argv[]) {
         else if (line == "clear") {
             system("clear");
             cout << letterhead << endl;
-        }
-
-        // Handle the announce_services command.
-        else if (line == "announce_services") {
-            cout << "== Services Announced by Peers ==" << endl;
-            for (const auto &peer : peers) {
-                auto id = server.send_message(peer.first, "announce_services");
-
-                // If we could not send the message, continue.
-                if (!id.ok()) {
-                    server.log(id.status, std::move(id.status_message));
-                    continue;
-                }
-
-                // Read from response.
-                string services_string = "";
-                while (true) {
-                    StatusOr<string> response = server.receive_message(id.result);
-                    if (!response.ok()) {
-                        break;
-                    }
-                    services_string += response.result;
-                }
-
-                // Split the services by space and add to the services map.
-                int i = 0, j = 0;
-                for (; j < services_string.size(); j++) {
-                    if (services_string[j] == ' ') {
-                        // Extract the service.
-                        string service = services_string.substr(i, j - i);
-                        i = j + 1;
-
-                        // Add the peer to the service.
-                        peers[peer.first].insert(service);
-
-                        // Create the service if it does not exist.
-                        if (services.find(service) == services.end()) {
-                            services[service] = set<string>();
-                        }
-
-                        // Add the peer to the service.
-                        services[service].insert(peer.first);
-                    }
-                }
-                // Print the services from the peer.
-                cout << peer.first << ": " << services_string << endl;
-            }
-            cout << "=================================" << endl;
         }
 
         // Handle echo command.
