@@ -30,19 +30,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    /// The abilities of the server.
-    set<string> abilities;
-    for (int i = 5; i < argc; i++) {
-        // Check if the ability is valid.
-        if (string(argv[i]) != "echo" && string(argv[i]) != "report_temp") {
-            cout << "Invalid ability: " << argv[i] << endl;
-            continue;
-        }
-
-        // Add the ability.
-        abilities.insert(argv[i]);
-    }
-
     /// The interface name.
     const string interface = argv[1];
 
@@ -55,74 +42,89 @@ int main(int argc, char *argv[]) {
     /// The port to listen on.
     const int port = stoi(argv[4]);
 
+    /// The provided_services of the server.
+    set<string> provided_services;
+    for (int i = 5; i < argc; i++) {
+        // Check if the ability is valid.
+        if (string(argv[i]) != "echo" && string(argv[i]) != "report_temp") {
+            cout << "Invalid ability: " << argv[i] << endl;
+            continue;
+        }
+        // Add the ability.
+        provided_services.insert(argv[i]);
+    }
+
     // Setup the callback functions.
 
     /// A map of peers to the services they provide.
-    map<string, set<string>> peers;
+    map<string, set<string>> peers_to_services;
 
     /// A map of services to the peers that provide them.
-    map<string, set<string>> services;
+    map<string, set<string>> services_to_peers;
 
     /// Callback function for when a peer connects.
-    function on_peer_connect = [&](const string peer, DistributedServer &server) {
-        peers.insert({peer, set<string>()});
-        auto id = server.send_message(peer, "announce_services");
+    function on_peer_connect = [&](const string peer_ip, DistributedServer &server) {
+        peers_to_services.insert({peer_ip, set<string>()});
 
-        // If we could not send the message, continue.
+        // Ask the peer to announce its services.
+        auto id = server.send_message(peer_ip, "announce_services");
         if (!id.ok()) {
             server.log(id.status, std::move(id.status_message));
             return;
         }
 
-        // Read from response.
-        string services_string = "";
+        // Read the services announced by the peer.
+        string announced_services = "";
         while (true) {
             StatusOr<string> response = server.receive_message(id.result);
             if (!response.ok()) {
                 break;
             }
-            services_string += response.result;
+            announced_services += response.result;
         }
 
         // Split the services by space and add to the services map.
         int i = 0, j = 0;
-        for (; j < services_string.size(); j++) {
-            if (services_string[j] == ' ') {
+        for (; j < announced_services.size(); j++) {
+            if (isspace(announced_services[j])) {
                 // Extract the service.
-                string service = services_string.substr(i, j - i);
+                string announced_service = announced_services.substr(i, j - i);
                 i = j + 1;
 
-                // Add the peer to the service.
-                peers[peer].insert(service);
-
-                // Create the service if it does not exist.
-                if (services.find(service) == services.end()) {
-                    services[service] = set<string>();
+                // Add the peer to services_to_peers.
+                auto peer_to_services_it = services_to_peers.find(announced_service);
+                if (peer_to_services_it == services_to_peers.end()) {
+                    services_to_peers[announced_service] = {peer_ip};
+                } else {
+                    peer_to_services_it->second.insert(peer_ip);
                 }
 
-                // Add the peer to the service.
-                services[service].insert(peer);
+                // Add the service to peers_to_services.
+                peers_to_services[peer_ip].insert(std::move(announced_service));
             }
         }
     };
 
     /// Callback function for when a peer disconnects.
-    function on_peer_disconnect = [&](const string ip, DistributedServer &server) {
-        for (const auto &service : peers[ip]) {
-            services[service].erase(ip);
+    function on_peer_disconnect = [&](const string peer_ip, DistributedServer &server) {
+        // Remove the peer from the services map.
+        for (const auto &peer_services : peers_to_services[peer_ip]) {
+            services_to_peers[peer_services].erase(peer_ip);
+
+            // Remove the service if it is empty.
+            if (services_to_peers[peer_services].empty()) {
+                services_to_peers.erase(peer_services);
+            }
         }
-        peers.erase(ip);
+
+        // Remove the peer from the peers map.
+        peers_to_services.erase(peer_ip);
     };
 
     // Setup default handlers.
 
     /// Default request handler.
-    function<void(const Request)> default_request_handler = [](const Request request) {
-        // Send HTTP OK response.
-        const string http_ok = "HTTP/1.1 200 OK\r\n\r\n";
-        write(request.fd, http_ok.c_str(), http_ok.size());
-        close(request.fd);
-    };
+    function default_request_handler = [](const Request request) { close(request.fd); };
 
     /// Create the distributed server.
     DistributedServer server(interface, interface_ip, group, port, default_request_handler,
@@ -140,8 +142,8 @@ int main(int argc, char *argv[]) {
         server.log(Status::OK, "Received announce_services request: '" + request.data + "'");
 
         // Go through each service and send a response separated by a space.
-        for (const auto &service : abilities) {
-            write(request.fd, service.c_str(), service.size());
+        for (const auto &provided_service : provided_services) {
+            write(request.fd, provided_service.c_str(), provided_service.size());
             write(request.fd, " ", 1);
         }
 
@@ -158,9 +160,6 @@ int main(int argc, char *argv[]) {
         // Log the request.
         server.log(Status::OK, "Received echo request: '" + request.data + "'");
         write(request.fd, request.data.c_str(), request.data.size());
-
-        // Log the response.
-        server.log(Status::OK, "Sent echo response to: '" + string(ip, INET_ADDRSTRLEN) + "'");
 
         // Close the connection.
         close(request.fd);
@@ -206,18 +205,18 @@ int main(int argc, char *argv[]) {
     string line = "";
     while (cout << "sever-demo-shell: " && getline(cin, line)) {
         // Process the input.
-        if (line == "peers") {
+        if (line == "peers" || line == "p" || line == "ls") {
             cout << "== Peers Currently Connected ==" << endl;
-            for (const auto &peer : peers) {
+            for (const auto &peer : peers_to_services) {
                 cout << "- \t" << peer.first << endl;
             }
             cout << "================================" << endl;
         }
 
         // Handle the services command.
-        else if (line == "services") {
+        else if (line == "services" || line == "s") {
             cout << "== Services Currently Available ==" << endl;
-            for (const auto &service : services) {
+            for (const auto &service : services_to_peers) {
                 cout << "- \t" << service.first << " (" << service.second.size() << ")" << endl;
             }
             cout << "==================================" << endl;
@@ -235,14 +234,15 @@ int main(int argc, char *argv[]) {
             string message = line.substr(5);
 
             // Send the echo request to peers who support the service.
-            auto peers_it = services.find("echo");
-            if (peers_it == services.end() || peers_it->second.empty()) {
+            auto peers_it = services_to_peers.find("echo");
+            if (peers_it == services_to_peers.end() || peers_it->second.empty()) {
                 server.log(Status::ERROR, "No peers support the echo service");
                 continue;
             }
 
+            // Send the echo request to peers who support the service.
             for (const auto &peer : peers_it->second) {
-                auto id = server.send_message(peer, "echo " + message);
+                auto id = server.send_message(peer, message);
 
                 // If we could not send the message, continue.
                 if (!id.ok()) {
@@ -252,23 +252,23 @@ int main(int argc, char *argv[]) {
 
                 // Read all available responses.
                 while (true) {
-                    StatusOr<string> response = server.receive_message(id.result);
-
-                    // If we get a response, print it.
-                    if (response.ok()) {
-                        server.log(Status::OK, "Received echo response: " + response.result);
-                    } else {
+                    auto response = server.receive_message(id.result);
+                    if (!response.ok()) {
+                        server.log(response.status, std::move(response.status_message));
                         break;
                     }
+
+                    // Print the response.
+                    cout << response.result << endl;
                 }
             }
         }
 
         // Handle the report_temp command.
-        else if (line == "report_temp") {
+        else if (line == "report_temp" || line == "rt") {
             // Check if we have any peers that support the service.
-            auto peers_it = services.find("report_temp");
-            if (peers_it == services.end() || peers_it->second.empty()) {
+            auto peers_it = services_to_peers.find("report_temp");
+            if (peers_it == services_to_peers.end() || peers_it->second.empty()) {
                 server.log(Status::ERROR, "No peers support the report_temp service");
                 continue;
             }
@@ -285,17 +285,20 @@ int main(int argc, char *argv[]) {
                 }
 
                 // Read from response.
-                string temp = "";
+                string announced_temp = "";
                 while (true) {
-                    StatusOr<string> response = server.receive_message(id.result);
+                    auto response = server.receive_message(id.result);
                     if (!response.ok()) {
+                        server.log(response.status, std::move(response.status_message));
                         break;
                     }
-                    temp += response.result;
+
+                    // Append the response to the announced_temp.
+                    announced_temp += response.result;
                 }
 
                 // Print the temperature from the peer.
-                cout << peer << ": " << temp << endl;
+                cout << peer << " is at " << announced_temp << endl;
             }
             cout << "==================================" << endl;
         }
