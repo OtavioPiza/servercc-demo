@@ -225,5 +225,33 @@ int main(int argc, char *argv[]) {
             }
             cout << "=================================" << endl;
         }
+
+        // Handle the report_temp command.
+        else if (line == "report_temp") {
+            cout << "== Temperature Reported by Peers ==" << endl;
+            for (const auto &peer : peers) {
+                auto id = server.send_message(peer.first, "report_temp");
+
+                // If we could not send the message, continue.
+                if (!id.ok()) {
+                    server.log(id.status, std::move(id.status_message));
+                    continue;
+                }
+
+                // Read from response.
+                string temp = "";
+                while (true) {
+                    StatusOr<string> response = server.receive_message(id.result);
+                    if (!response.ok()) {
+                        break;
+                    }
+                    temp += response.result;
+                }
+
+                // Print the temperature from the peer.
+                cout << peer.first << ": " << temp << endl;
+            }
+            cout << "==================================" << endl;
+        }
     }
 }
