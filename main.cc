@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
 
         // Go through each service and send a response separated by a space.
         string response = "";
-        for (const auto &service : peers[ip]) {
+        for (const auto &service : abilities) {
             response += service + " ";
         }
         write(request.fd, response.c_str(), response.size() - 1);
