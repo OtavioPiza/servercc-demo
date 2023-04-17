@@ -111,6 +111,40 @@ int main(int argc, char *argv[]) {
         close(request.fd);
     });
 
+    /// Handler for the report_temp request.
+    server.add_handler("report_temp", [&](const Request request) {
+        // Get the ip address of the peer from request.addr.
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
+
+        // Log the request.
+        server.log(Status::OK, "Received report_temp request: '" + request.data + "'");
+
+        // Send the temperature by running the sensors command.
+        FILE *fp = popen("sensors | grep 'Package id 0:' | awk '{print $4}'", "r");
+        if (fp == nullptr) {
+            server.log(Status::ERROR, "Could not run sensors command");
+            close(request.fd);
+            return;
+        }
+
+        // Read the output.
+        char buffer[1024];
+        string temp = "";
+        while (fgets(buffer, sizeof(buffer), fp) != nullptr) {
+            temp += buffer;
+        }
+
+        // Close the pipe.
+        pclose(fp);
+
+        // Send the temperature.
+        write(request.fd, temp.c_str(), temp.size());
+        
+        // Close the connection.
+        close(request.fd);
+    });
+
     server.run();
 
     sleep(1);
