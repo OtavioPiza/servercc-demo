@@ -78,10 +78,8 @@ int main(int argc, char *argv[]) {
     /// Handler for the echo request.
     server.add_handler("echo", [&](const Request request) {
         // Get the ip address of the peer from request.addr.
-        shared_ptr<struct sockaddr_in> addr =
-            std::reinterpret_pointer_cast<struct sockaddr_in>(request.addr);
         char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr->sin_addr, ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
 
         // Log the request.
         server.log(Status::OK, "Received echo request: '" + request.data + "'");
@@ -97,10 +95,8 @@ int main(int argc, char *argv[]) {
     /// Handler for the announce_services request.
     server.add_handler("announce_services", [&](const Request request) {
         // Get the ip address of the peer from request.addr.
-        shared_ptr<struct sockaddr_in> addr =
-            std::reinterpret_pointer_cast<struct sockaddr_in>(request.addr);
         char ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr->sin_addr, ip, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
 
         // Log the request.
         server.log(Status::OK, "Received announce_services request: '" + request.data + "'");
@@ -189,7 +185,7 @@ int main(int argc, char *argv[]) {
                     }
                     services += response.result;
                 }
-                
+
                 // Print the services from the peer.
                 cout << peer.first << ": " << services << endl;
             }
