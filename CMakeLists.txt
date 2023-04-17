@@ -22,6 +22,11 @@ if (NOT TARGET libcc)
             message(STATUS "Cloning libcc into ${LIBCC_DIR}")
             execute_process(COMMAND git clone https://github.com/OtavioPiza/libcc.git ${LIBCC_DIR})
 
+        # If the directory exists, then update it.
+        else()
+            message(STATUS "Updating libcc in ${LIBCC_DIR}")
+            execute_process(COMMAND git pull origin master WORKING_DIRECTORY ${LIBCC_DIR})
+
         endif()
 
     endif()
@@ -45,6 +50,11 @@ if (NOT TARGET servercc)
             message(STATUS "Cloning servercc into ${SERVERCC_DIR}")
             execute_process(
                 COMMAND git clone https://github.com/OtavioPiza/servercc.git ${SERVERCC_DIR})
+
+        # If the directory exists, then update it.
+        else()
+            message(STATUS "Updating servercc in ${SERVERCC_DIR}")
+            execute_process(COMMAND git pull origin master WORKING_DIRECTORY ${SERVERCC_DIR})
 
         endif()
 
