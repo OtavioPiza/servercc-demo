@@ -25,7 +25,7 @@ if (NOT TARGET libcc)
         # If the directory exists, then update it.
         else()
             message(STATUS "Updating libcc in ${LIBCC_DIR}")
-            execute_process(COMMAND git pull origin master WORKING_DIRECTORY ${LIBCC_DIR})
+            execute_process(COMMAND git pull origin main WORKING_DIRECTORY ${LIBCC_DIR})
 
         endif()
 
@@ -54,7 +54,7 @@ if (NOT TARGET servercc)
         # If the directory exists, then update it.
         else()
             message(STATUS "Updating servercc in ${SERVERCC_DIR}")
-            execute_process(COMMAND git pull origin master WORKING_DIRECTORY ${SERVERCC_DIR})
+            execute_process(COMMAND git pull origin main WORKING_DIRECTORY ${SERVERCC_DIR})
 
         endif()
 
