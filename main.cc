@@ -300,6 +300,14 @@ int main(int argc, char *argv[]) {
             cout << "==================================" << endl;
         }
 
+        // Send connect message.
+        else if (line == "sc") {
+            auto res = server.send_connect_message();
+            if (!res.ok()) {
+                server.log(res.status, std::move(res.status_message));
+            }
+        }
+
         // Print supported commands.
         else if (line == "help" || line == "h") {
             cout << "== Supported Commands ==" << endl
