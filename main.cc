@@ -162,6 +162,42 @@ int main(int argc, char *argv[]) {
         close(request.fd);
     });
 
+    /// Handler for the sort request.
+    server.add_handler("sort", [&](const Request request) {
+        // Get the ip address of the peer from request.addr.
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
+
+        // Log the request.
+        server.log(Status::OK, "Received sort request: '" + request.data + "'");
+
+        // Split the request by space.
+        int i = 0, j = 0;
+        vector<int> numbers;
+        for (; j < request.data.size(); j++) {
+            if (isspace(request.data[j])) {
+                // Extract the number.
+                string number = request.data.substr(i, j - i);
+                i = j + 1;
+
+                // Add the number to the vector.
+                numbers.push_back(stoi(number));
+            }
+        }
+
+        // Sort the numbers.
+        sort(numbers.begin(), numbers.end());
+
+        // Send the sorted numbers.
+        for (int i = 0; i < numbers.size(); i++) {
+            if (i != 0) write(request.fd, " ", 1);
+            write(request.fd, to_string(numbers[i]).c_str(), to_string(numbers[i]).size());
+        }
+
+        // Close the connection.
+        close(request.fd);
+    });
+
     /// Handler for the report_temp request.
     server.add_handler("report_temp", [&](const Request request) {
         // Get the ip address of the peer from request.addr.
@@ -288,6 +324,73 @@ int main(int argc, char *argv[]) {
                     cout << response.result << endl;
                 }
             }
+        }
+
+        // Handle a sort request.
+        else if (line.starts_with("sort ")) {
+            // Get the numbers.
+            string numbers = line.substr(5);
+
+            // Check if we have any peers that support the service.
+            auto peers_it = services_to_peers.find("sort");
+            if (peers_it == services_to_peers.end() || peers_it->second.empty()) {
+                server.log(Status::ERROR, "No peers support the sort service");
+                continue;
+            }
+
+            // Read the numbers into a vector.
+            vector<int> nums;
+            stringstream ss(numbers);
+            int num;
+            while (ss >> num) nums.push_back(num);
+
+            // Send each peer part of the numbers.
+            int chunk_size = nums.size() / peers_it->second.size();
+            int start = 0;
+            vector<int> ids(peers_it->second.size());
+            for (auto &peer : peers_it->second) {
+                int end = min(start + chunk_size, (int)nums.size());
+
+                // Send the sort request.
+                string message = "sort ";
+                for (int i = start; i < end; i++) {
+                    if (i != start) message += " ";
+                    message += to_string(nums[i]);
+                }
+
+                // Attempt to send the message.
+                while (true) {
+                    auto res = server.send_message(peer, message);
+                    if (res.ok()) {
+                        ids.push_back(res.result);
+                        break;
+                    }
+                }
+            }
+
+            // Read the responses.
+            vector<vector<int>> responses;
+            for (int i = 0; i < ids.size(); i++) {
+                // Read all available responses.
+                while (true) {
+                    auto response = server.receive_message(ids[i]);
+                    if (!response.ok()) {
+                        break;
+                    }
+
+                    // Parse the response.
+                    stringstream ss(response.result);
+                    vector<int> nums;
+                    int num;
+                    while (ss >> num) nums.push_back(num);
+
+                    // Add the response to the list.
+                    responses.push_back(nums);
+                }
+            }
+
+            // Merge the responses 2 at a time.
+            cout << "== Sorted Numbers ==" << endl;
         }
 
         // Handle the report_temp command.
