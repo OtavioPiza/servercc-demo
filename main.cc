@@ -25,8 +25,9 @@ const string prompt = "servercc> ";
 int main(int argc, char *argv[]) {
     // Get the interface name, ip, group, and port from the command line.
     if (argc < 4) {
-        cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> [echo|report_temp]..."
-             << endl;
+        cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> [abilities...]" << endl
+             << endl
+             << "Abilities: echo, report_temp, report_mem" << endl;
         return 0;
     }
 
@@ -45,12 +46,6 @@ int main(int argc, char *argv[]) {
     /// The provided_services of the server.
     set<string> provided_services;
     for (int i = 5; i < argc; i++) {
-        // Check if the ability is valid.
-        if (string(argv[i]) != "echo" && string(argv[i]) != "report_temp") {
-            cout << "Invalid ability: " << argv[i] << endl;
-            continue;
-        }
-        // Add the ability.
         provided_services.insert(argv[i]);
     }
 
@@ -64,7 +59,6 @@ int main(int argc, char *argv[]) {
 
     /// Callback function for when a peer connects.
     function on_peer_connect = [&](const string peer_ip, DistributedServer &server) {
-
         server.log(Status::INFO, "Peer connected: '" + peer_ip + "'");
 
         peers_to_services.insert({peer_ip, set<string>()});
@@ -198,6 +192,36 @@ int main(int argc, char *argv[]) {
         close(request.fd);
     });
 
+    /// Handler to report memory usage.
+    server.add_handler("report_mem", [&](const Request request) {
+        // Get the ip address of the peer from request.addr.
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
+
+        // Log the request.
+        server.log(Status::OK, "Received report_mem request: '" + request.data + "'");
+
+        // Send the memory usage by running the free command.
+        FILE *fp = popen("free -h | grep Mem | awk '{print $3}'", "r");
+        if (fp == nullptr) {
+            server.log(Status::ERROR, "Could not run free command");
+            close(request.fd);
+            return;
+        }
+
+        // Read the output into the request.fd.
+        char buffer[1024];
+        while (fgets(buffer, sizeof(buffer), fp) != nullptr) {
+            write(request.fd, buffer, strlen(buffer));
+        }
+
+        // Close the pipe.
+        pclose(fp);
+
+        // Close the connection.
+        close(request.fd);
+    });
+
     // Start the server.
     server.run();
 
@@ -298,9 +322,46 @@ int main(int argc, char *argv[]) {
                 }
 
                 // Print the temperature from the peer.
-                cout << peer << " is at " << announced_temp << endl;
+                cout << peer << " is at " << announced_temp;
             }
             cout << "==================================" << endl;
+        }
+
+        // Handle report memory command.
+        else if (line == "report_mem" || line == "rm") {
+            // Check if we have any peers that support the service.
+            auto peers_it = services_to_peers.find("report_mem");
+            if (peers_it == services_to_peers.end() || peers_it->second.empty()) {
+                server.log(Status::ERROR, "No peers support the report_mem service");
+                continue;
+            }
+
+            // Send the report_mem request to peers who support the service.
+            cout << "== Memory Usage Reported by Peers ==" << endl;
+            for (const auto &peer : peers_it->second) {
+                auto id = server.send_message(peer, "report_mem");
+
+                // If we could not send the message, continue.
+                if (!id.ok()) {
+                    server.log(id.status, std::move(id.status_message));
+                    continue;
+                }
+
+                // Read from response.
+                string announced_mem = "";
+                while (true) {
+                    auto response = server.receive_message(id.result);
+                    if (!response.ok()) {
+                        break;
+                    }
+                    // Append the response to the announced_mem.
+                    announced_mem += response.result;
+                }
+
+                // Print the memory usage from the peer.
+                cout << peer << " is using " << announced_mem;
+            }
+            cout << "====================================" << endl;
         }
 
         // Send connect message.

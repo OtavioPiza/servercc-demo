@@ -5,8 +5,8 @@
 	],
 	"cmake.debugConfig": {
 		"args": [
-			"ztyxaydhop",
-			"172.24.0.1",
+			"vboxnet0",
+			"192.168.56.1",
 			"224.1.1.1",
 			"8000",
 			"echo",
