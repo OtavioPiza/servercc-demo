@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
 
         // Log the request.
         server.log(Status::OK, "Received echo request: '" + request.data + "'");
-        write(request.fd, request.data.c_str(), request.data.size());
+        write(request.fd, request.data.c_str() + 5, request.data.size() - 5);
 
         // Close the connection.
         close(request.fd);
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
 
             // Send the echo request to peers who support the service.
             for (const auto &peer : peers_it->second) {
-                auto id = server.send_message(peer, message);
+                auto id = server.send_message(peer, "echo " + message);
 
                 // If we could not send the message, continue.
                 if (!id.ok()) {
@@ -254,7 +254,6 @@ int main(int argc, char *argv[]) {
                 while (true) {
                     auto response = server.receive_message(id.result);
                     if (!response.ok()) {
-                        server.log(response.status, std::move(response.status_message));
                         break;
                     }
 
@@ -289,10 +288,8 @@ int main(int argc, char *argv[]) {
                 while (true) {
                     auto response = server.receive_message(id.result);
                     if (!response.ok()) {
-                        server.log(response.status, std::move(response.status_message));
                         break;
                     }
-
                     // Append the response to the announced_temp.
                     announced_temp += response.result;
                 }
