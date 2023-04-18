@@ -64,6 +64,9 @@ int main(int argc, char *argv[]) {
 
     /// Callback function for when a peer connects.
     function on_peer_connect = [&](const string peer_ip, DistributedServer &server) {
+
+        server.log(Status::INFO, "Peer connected: '" + peer_ip + "'");
+
         peers_to_services.insert({peer_ip, set<string>()});
 
         // Ask the peer to announce its services.
