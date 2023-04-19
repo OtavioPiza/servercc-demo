@@ -346,8 +346,7 @@ int main(int argc, char *argv[]) {
                 auto time_end = chrono::steady_clock::now();
                 auto time_diff =
                     chrono::duration_cast<chrono::milliseconds>(time_end - time_start).count();
-                server.log(Status::OK, "Echo response from " + peer + ": '" + result + "' (" +
-                                           to_string(time_diff) + "ms)");
+                cout << "Response from " << peer << " (" << time_diff << "ms): " << result << endl;
             }
         }
 
