@@ -323,6 +323,7 @@ int main(int argc, char *argv[]) {
             // Send the echo request to peers who support the service.
             vector peers = vector<string>(peers_it->second.begin(), peers_it->second.end());
             for (const auto &peer : peers) {
+                auto time_start = chrono::steady_clock::now();
                 auto id = server.send_message(peer, "echo " + message);
 
                 // If we could not send the message, continue.
@@ -332,15 +333,21 @@ int main(int argc, char *argv[]) {
                 }
 
                 // Read all available responses.
+                string result = "";
                 while (true) {
                     auto response = server.receive_message(id.result);
                     if (!response.ok()) {
                         break;
                     }
-
-                    // Print the response.
-                    cout << response.result << endl;
+                    result += response.result;
                 }
+
+                // Log the result.
+                auto time_end = chrono::steady_clock::now();
+                auto time_diff =
+                    chrono::duration_cast<chrono::milliseconds>(time_end - time_start).count();
+                server.log(Status::OK, "Echo response from " + peer + ": '" + result + "' (" +
+                                           to_string(time_diff) + "ms)");
             }
         }
 
@@ -388,7 +395,7 @@ int main(int argc, char *argv[]) {
             while (ss >> num) nums.push_back(num);
 
             // Send each peer part of the numbers.
-            int chunk_size = ceil((double) nums.size() / (double) peers_it->second.size());
+            int chunk_size = ceil((double)nums.size() / (double)peers_it->second.size());
             int start = 0;
             vector<int> ids(peers_it->second.size());
             vector peers = vector<string>(peers_it->second.begin(), peers_it->second.end());
