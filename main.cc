@@ -23,6 +23,8 @@ const string prompt = "servercc> ";
 
 /// The main function.
 int main(int argc, char *argv[]) {
+    // Setup the server.
+
     // Get the interface name, ip, group, and port from the command line.
     if (argc < 4) {
         cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> [abilities...]" << endl
@@ -49,13 +51,15 @@ int main(int argc, char *argv[]) {
         provided_services.insert(argv[i]);
     }
 
-    // Setup the callback functions.
-
     /// A map of peers to the services they provide.
     map<string, set<string>> peers_to_services;
 
     /// A map of services to the peers that provide them.
     map<string, set<string>> services_to_peers;
+
+    // ===================================================================== //
+    // ========================== ADD CALLBACKS ============================ //
+    // ===================================================================== //
 
     /// Callback function for when a peer connects.
     function on_peer_connect = [&](const string peer_ip, DistributedServer &server) {
@@ -118,16 +122,18 @@ int main(int argc, char *argv[]) {
         peers_to_services.erase(peer_ip);
     };
 
-    // Setup default handlers.
+    // ===================================================================== //
+    // ========================== CREATE SERVER ============================ //
+    // ===================================================================== //
 
-    /// Default request handler.
-    function default_request_handler = [](const Request request) { close(request.fd); };
+    /// Distributed server.
+    DistributedServer server(
+        interface, interface_ip, group, port, [](const Request request) { close(request.fd); },
+        on_peer_connect, on_peer_disconnect);
 
-    /// Create the distributed server.
-    DistributedServer server(interface, interface_ip, group, port, default_request_handler,
-                             on_peer_connect, on_peer_disconnect);
-
-    // Add custom handlers.
+    // ===================================================================== //
+    // ========================== ADD HANDLERS ============================= //
+    // ===================================================================== //
 
     /// Handler for the announce_services request.
     server.add_handler("announce_services", [&](const Request request) {
@@ -253,9 +259,11 @@ int main(int argc, char *argv[]) {
     // Start the server.
     server.run();
 
-    sleep(1);
+    // ===================================================================== //
+    // ========================== DEMO SHELL =============================== //
+    // ===================================================================== //
 
-    // Start the shell.
+    sleep(1);
     cout << letterhead << endl;
     string line = "";
     while (cout << "sever-demo-shell: " && getline(cin, line)) {
@@ -280,7 +288,6 @@ int main(int argc, char *argv[]) {
         // Handle the clear command.
         else if (line == "clear") {
             system("clear");
-            cout << letterhead << endl;
         }
 
         // Handle echo command.
@@ -321,7 +328,7 @@ int main(int argc, char *argv[]) {
         // Handle a sort request.
         else if (line.starts_with("sort ")) {
             // Get the numbers.
-            string numbers = line.substr(5);
+            string numbers = line.substr(4);
 
             // Check if we have any peers that support the service.
             auto peers_it = services_to_peers.find("sort");
@@ -358,6 +365,9 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                 }
+
+                // Update the start index.
+                start = end;
             }
 
             // Read the responses.
@@ -381,8 +391,45 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            cout << "== Sorted Numbers ==" << endl;
+            // Merge the responses.
+            function<vector<int>(int, int)> merge = [&](int start, int end) {
+                // Base case.
+                if (start == end) {
+                    return responses[start];
+                }
 
+                // Recursive case.
+                int mid = (start + end) / 2;
+                auto left = merge(start, mid);
+                auto right = merge(mid + 1, end);
+
+                // Merge the two lists.
+                vector<int> merged;
+                int i = 0, j = 0;
+                while (i < left.size() && j < right.size()) {
+                    if (left[i] < right[j]) {
+                        merged.push_back(left[i++]);
+                    } else {
+                        merged.push_back(right[j++]);
+                    }
+                }
+
+                // Add the remaining elements.
+                while (i < left.size()) merged.push_back(left[i++]);
+                while (j < right.size()) merged.push_back(right[j++]);
+
+                return std::move(merged);
+            };
+
+            // Print the sorted numbers.
+            auto sorted = merge(0, responses.size() - 1);
+            cout << "== Sorted Numbers ==" << endl;
+            for (int i = 0; i < sorted.size(); i++) {
+                if (i != 0) cout << " ";
+                cout << sorted[i];
+            }
+            cout << endl;
+            cout << "===================" << endl;
         }
 
         // Handle the report_temp command.
@@ -476,6 +523,10 @@ int main(int argc, char *argv[]) {
                  << endl
                  << "report_temp\t - Report the temperature of peers who support the report_temp "
                     "service"
+                 << "report_mem\t - Report the memory usage of peers who support the report_mem "
+                    "service"
+                 << endl
+                 << "sort\t - Sort a list of numbers using peers who support the sort service"
                  << endl
                  << "clear\t - Clear the screen" << endl
                  << "help\t - Print this message" << endl
