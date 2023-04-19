@@ -32,7 +32,7 @@ if (NOT TARGET libcc)
     endif()
 
     # Add libcc as a subdirectory and link it to the executable.
-    add_subdirectory(${LIBCC_DIR} ${LIBCC_DIR}/build)
+    add_subdirectory(${LIBCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/libcc)
     target_link_libraries(${PROJECT_NAME} PRIVATE libcc)
 
 endif()
@@ -61,7 +61,7 @@ if (NOT TARGET servercc)
     endif()
 
     # Add servercc as a subdirectory and link it to the executable.
-    add_subdirectory(${SERVERCC_DIR} ${SERVERCC_DIR}/build)
+    add_subdirectory(${SERVERCC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/servercc)
     target_link_libraries(${PROJECT_NAME} PRIVATE servercc)
 
 endif()
