@@ -388,7 +388,7 @@ int main(int argc, char *argv[]) {
             while (ss >> num) nums.push_back(num);
 
             // Send each peer part of the numbers.
-            int chunk_size = nums.size() / peers_it->second.size();
+            int chunk_size = ceil((double) nums.size() / (double) peers_it->second.size());
             int start = 0;
             vector<int> ids(peers_it->second.size());
             vector peers = vector<string>(peers_it->second.begin(), peers_it->second.end());
