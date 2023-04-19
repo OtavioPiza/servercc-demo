@@ -303,7 +303,8 @@ int main(int argc, char *argv[]) {
             }
 
             // Send the echo request to peers who support the service.
-            for (const auto &peer : peers_it->second) {
+            vector peers = vector<string>(peers_it->second.begin(), peers_it->second.end());
+            for (const auto &peer : peers) {
                 auto id = server.send_message(peer, "echo " + message);
 
                 // If we could not send the message, continue.
@@ -347,7 +348,8 @@ int main(int argc, char *argv[]) {
             int chunk_size = nums.size() / peers_it->second.size();
             int start = 0;
             vector<int> ids(peers_it->second.size());
-            for (auto &peer : peers_it->second) {
+            vector peers = vector<string>(peers_it->second.begin(), peers_it->second.end());
+            for (auto &peer : peers) {
                 int end = min(start + chunk_size, (int)nums.size());
 
                 // Send the sort request.
