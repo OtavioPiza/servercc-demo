@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     if (argc < 4) {
         cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> [abilities...]" << endl
              << endl
-             << "Abilities: echo, report_temp, report_mem" << endl;
+             << "Abilities: echo, report_temp, report_mem, sort" << endl;
         return 0;
     }
 
@@ -172,18 +172,10 @@ int main(int argc, char *argv[]) {
         server.log(Status::OK, "Received sort request: '" + request.data + "'");
 
         // Split the request by space.
-        int i = 0, j = 0;
+        stringstream ss(request.data.substr(4));
         vector<int> numbers;
-        for (; j < request.data.size(); j++) {
-            if (isspace(request.data[j])) {
-                // Extract the number.
-                string number = request.data.substr(i, j - i);
-                i = j + 1;
-
-                // Add the number to the vector.
-                numbers.push_back(stoi(number));
-            }
-        }
+        int number;
+        while (ss >> number) numbers.push_back(number);
 
         // Sort the numbers.
         sort(numbers.begin(), numbers.end());
@@ -389,8 +381,8 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // Merge the responses 2 at a time.
             cout << "== Sorted Numbers ==" << endl;
+
         }
 
         // Handle the report_temp command.
