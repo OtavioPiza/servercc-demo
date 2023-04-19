@@ -12,8 +12,7 @@ To build the project, run the following commands:
 
 ```bash
 cmake -S <path-to-repo> -B <path-to-build-dir>
-cd <path-to-build-dir>
-make
+cmake --build <path-to-build-dir>
 ```
 
 ## Running
@@ -21,7 +20,7 @@ make
 To run the project, run the following commands:
 
 ```bash
-./servercc-demo <interface> <interface ip> <multicast group> <port> <abilities>...
+./<path-to-build-dir>/servercc-demo <interface> <interface ip> <multicast group> <port> <abilities>...
 ```
 
 The abilities fields allows you to specify which services the server will provide allowing you to create asymmetric servers. The available abilities are:
