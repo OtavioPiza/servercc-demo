@@ -284,7 +284,7 @@ int main(int argc, char *argv[]) {
     sleep(1);
     cout << letterhead << endl;
     string line = "";
-    while (cout << "sever-demo-shell: " && getline(cin, line)) {
+    while (cout << "servercc-shell> " && getline(cin, line)) {
         // Process the input.
         if (line == "peers" || line == "p") {
             cout << "== Peers Currently Connected ==" << endl;
