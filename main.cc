@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     if (argc < 4) {
         cout << "Usage: " << argv[0] << " <interface> <ip> <group> <port> [abilities...]" << endl
              << endl
-             << "Abilities: echo, report_temp, report_mem, sort" << endl;
+             << "Abilities: report_temp, report_mem, sort" << endl;
         return 0;
     }
 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     const int port = stoi(argv[4]);
 
     /// The provided_services of the server.
-    set<string> provided_services;
+    set<string> provided_services = {"echo", "block"};
     for (int i = 5; i < argc; i++) {
         provided_services.insert(argv[i]);
     }
@@ -166,6 +166,24 @@ int main(int argc, char *argv[]) {
 
         // Close the connection.
         close(request.fd);
+    });
+
+    /// Handler for a block request.
+    ///
+    /// When the server receives a block request, it will block the peer forever. This is used to
+    /// test the peer disconnect callback.
+    server.add_handler("block", [&](const Request request) {
+        // Get the ip address of the peer from request.addr.
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &((sockaddr_in *)&request.addr)->sin_addr, ip, INET_ADDRSTRLEN);
+
+        // Log the request.
+        server.log(Status::OK, "Received block request: '" + request.data + "'");
+
+        // Block the peer forever.
+        while (true) {
+            sleep(1);
+        }
     });
 
     /// Handler for the sort request.
@@ -323,6 +341,31 @@ int main(int argc, char *argv[]) {
                     // Print the response.
                     cout << response.result << endl;
                 }
+            }
+        }
+
+        // Handle block command.
+        else if (line.starts_with("block ")) {
+            const string peer_ip = line.substr(6);
+
+            // Check if the peer is connected.
+            if (peers_to_services.find(peer_ip) == peers_to_services.end()) {
+                server.log(Status::ERROR, "Peer is not connected");
+                continue;
+            }
+
+            // Block the peer.
+            auto res = server.send_message(peer_ip, "block");
+            if (!res.ok()) {
+                server.log(res.status, std::move(res.status_message));
+                continue;
+            }
+
+            // Read the response.
+            auto response = server.receive_message(res.result);
+            if (!response.ok()) {
+                server.log(response.status, std::move(response.status_message));
+                continue;
             }
         }
 
