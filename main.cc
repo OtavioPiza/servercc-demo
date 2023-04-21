@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
         // Read the services announced by the peer.
         string announced_services = "";
         while (true) {
-            StatusOr<string> response = server.receive_message(id.result);
+            StatusOr response = server.receive_message(id.result);
             if (!response.ok()) {
                 break;
             }
