@@ -15,7 +15,7 @@ if (NOT TARGET libcc)
     # If a user has not specified a directory for libcc, then clone it from GitHub into lib/libcc.
     if (NOT DEFINED LIBCC_DIR)
         # Define the directory for libcc.
-        set(LIBCC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/libcc)
+        set(LIBCC_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/libcc)
 
         # If the directory does not exist, then clone libcc into it.
         if (NOT EXISTS ${LIBCC_DIR})
@@ -43,7 +43,7 @@ if (NOT TARGET servercc)
     # If a user has not specified a directory for servercc, then clone it from GitHub into lib/servercc.
     if (NOT DEFINED SERVERCC_DIR)
         # Define the directory for servercc.
-        set(SERVERCC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/servercc)
+        set(SERVERCC_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib/servercc)
 
         # If the directory does not exist, then clone servercc into it.
         if (NOT EXISTS ${SERVERCC_DIR})
