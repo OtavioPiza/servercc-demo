@@ -1,7 +1,8 @@
+cmake_minimum_required(VERSION 3.18)
+
 project(servercc-demo)
 
 # Set the minimum version of CMake that can be used and the C++ standard.
-cmake_minimum_required(VERSION 3.18)
 set(CMAKE_CXX_STANDARD 20)
 
 # Add the executable.
