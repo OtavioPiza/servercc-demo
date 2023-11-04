@@ -15,6 +15,13 @@ cmake -S <path-to-repo> -B <path-to-build-dir>
 cmake --build <path-to-build-dir>
 ```
 
+If you already have servercc and/or libcc in other locations you can use the define the following variables:
+
+```bash
+LIBCC_DIR=<path-to-libcc>
+SERVERCC_DIR=<path-to-servercc>
+```
+
 ## Running
 
 To run the project, run the following commands:
